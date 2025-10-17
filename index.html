@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iced 🧊</title>
+<style>
+  body { margin:0; font-family:sans-serif; background:#111; color:#eee; display:flex; height:100vh; overflow:hidden; }
+  nav { width:120px; background:#1a1a1a; padding:10px; display:flex; flex-direction:column; gap:10px; }
+  nav button { background:#333; color:#eee; border:none; padding:10px; cursor:pointer; border-radius:6px; }
+  nav button.active { background:#555; }
+  main { flex:1; display:flex; flex-direction:column; padding:10px; overflow-y:auto; }
+  .section { display:none; }
+  .section.active { display:block; }
+  .freezer-btn { width:140px; height:50px; margin:5px; background:#2b6; color:#fff; border:none; border-radius:8px; position:relative; overflow:hidden; }
+  .freezer-btn.disabled { background:#555; }
+  .progress { position:absolute; left:0; top:0; bottom:0; background:rgba(255,255,255,0.2); width:0%; }
+  .upgrade, .prestige-upgrade { background:#222; margin:8px 0; padding:10px; border-radius:6px; }
+  .upgrade button, .prestige-upgrade button { margin-top:6px; padding:6px 10px; border:none; border-radius:6px; background:#333; color:#fff; }
+  .upgrade button.disabled, .prestige-upgrade button.disabled { background:#444; color:#777; cursor:not-allowed; }
+  .affordable { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } 50% { box-shadow: 0 0 12px 2px rgba(255,0,0,0.6); } 100% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } }
+  .floating-stats { position:fixed; right:10px; bottom:10px; background:rgba(0,0,0,0.6); padding:6px 10px; font-size:12px; border-radius:6px; color:#ddd; pointer-events:none; }
+  .popup { position:fixed; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); z-index:10; }
+  .popup-content { background:#222; padding:20px; border-radius:10px; text-align:center; }
+  .popup-content button { margin:5px; padding:6px 12px; border:none; border-radius:6px; background:#333; color:#fff; cursor:pointer; }
+  .orbit-view { font-family:monospace; white-space:pre; text-align:center; line-height:1.2; }
+</style>
+</head>
+<body>
+<nav>
+  <button onclick="showSection('freezers')" class="active">freezers</button>
+  <button onclick="showSection('upgrades')">upgrades</button>
+  <button onclick="showSection('prestige')">prestige</button>
+  <button onclick="showSection('stats')">stats</button>
+  <button onclick="showSection('settings')">settings</button>
+</nav>
+<main>
+  <div id="freezers" class="section active"><h2>freezers</h2><div id="freezer-container"></div></div>
+  <div id="upgrades" class="section"><h2>upgrades</h2><div id="upgrade-container"></div></div>
+  <div id="prestige" class="section"><h2>prestige</h2><div id="prestige-container"></div></div>
+  <div id="stats" class="section"><h2>stats</h2><div id="stats-content"></div></div>
+  <div id="settings" class="section"><h2>settings</h2><button onclick="showResetPopup()">reset all data</button></div>
+  <div id="orbit" class="section"><h2>orbit</h2><div id="orbit-view" class="orbit-view"></div><button id="collect-btn" onclick="collectMatter()">Collect Matter</button><div id="matter-upgrades"></div></div>
+</main>
+
+<div class="floating-stats" id="floating-stats">ice cubes: 0<br>prestige points: 0</div>
+
+<div class="popup" id="reset-popup">
+  <div class="popup-content">
+    <h3>are you sure?</h3>
+    <button onclick="confirmReset()">yes</button>
+    <button onclick="closeResetPopup()">no</button>
+  </div>
+</div>
+
+<script>
+let defaultGame = {
+  iceCubes:0, iceMultiplier:1,
+  freezers:[{id:0,cooldown:5,ready:true,progress:0}],
+  upgrades:{cooler:0,freezer:0,rat:0,school:0,agility:0},
+  prestige:{points:0,multiplier:1,speeder:1,final:false,first:false,addBoost:0},
+  prestigeCost:5000, ratTimer:5,
+  orbitUnlocked:false, matter:0, matterUpgrades:{drill:0,auto:0,unlocker:0}
+};
+
+let game = JSON.parse(localStorage.getItem("icedSave") || "null") || JSON.parse(JSON.stringify(defaultGame));
+
+function showSection(id){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+  let btn=document.querySelector(`nav button[onclick="showSection('${id}')"]`);
+  if(btn) btn.classList.add("active");
+}
+
+function updateFloatingStats(){
+  let stats=`ice cubes: ${game.iceCubes}<br>prestige points: ${game.prestige.points}`;
+  if(game.orbitUnlocked) stats+=`<br>matter: ${game.matter}`;
+  document.getElementById("floating-stats").innerHTML=stats;
+}
+
+function renderFreezers(){
+  let cont=document.getElementById("freezer-container"); cont.innerHTML="";
+  game.freezers.forEach(f=>{
+    let btn=document.createElement("button");
+    btn.className="freezer-btn"+(f.ready?"":" disabled");
+    btn.innerHTML=`<div class="progress" id="prog-${f.id}"></div>${f.ready?"make ice 🧊":"cooling..."}`;
+    btn.onclick=()=>{ if(f.ready) useFreezer(f); };
+    cont.appendChild(btn);
+  });
+}
+
+function renderUpgrades(){
+  let cont=document.getElementById("upgrade-container"); cont.innerHTML="";
+  let defs=[
+    {id:"cooler",name:"cooler",base:5,inc:5,desc:"reduce cooldown by 0.1s (min 0.5s)"},
+    {id:"freezer",name:"freezer",base:20,inc:5,desc:"add another freezer"},
+    {id:"rat",name:"rat",base:50,inc:0,desc:"random autoclick every 5s (1–5 freezers)"},
+    {id:"school",name:"school",base:80,inc:10,desc:"rat faster by 0.5s (min 0.5s)"},
+    {id:"agility",name:"agility",base:110,inc:20,desc:"rat can handle more freezers"}
+  ];
+  defs.forEach(d=>{
+    let level=game.upgrades[d.id]||0;
+    let cost=d.base+level*d.inc;
+    let div=document.createElement("div"); div.className="upgrade";
+    div.innerHTML=`<b>${d.name}</b> (lvl ${level})<br>${d.desc}<br>cost: ${cost} ice cubes<br>`;
+    let btn=document.createElement("button"); btn.textContent="buy";
+    if(game.iceCubes<cost || (d.id==="rat" && level>=1)) btn.classList.add("disabled"), btn.disabled=true;
+    else btn.classList.add("affordable");
+    btn.onclick=()=>buyUpgrade(d.id,cost);
+    div.appendChild(btn);
+    cont.appendChild(div);
+  });
+}
+
+function renderPrestige(){
+  let cont=document.getElementById("prestige-container"); cont.innerHTML="";
+
+  let btnPrestige=document.createElement("button");
+  btnPrestige.textContent=`prestige (cost: ${game.prestigeCost} ice cubes)`;
+  btnPrestige.onclick=()=>doPrestige();
+  if(game.iceCubes<game.prestigeCost) btnPrestige.disabled=true, btnPrestige.classList.add("disabled");
+  cont.appendChild(btnPrestige);
+
+  if(game.prestige.first){
+    let upgrades=[
+      {id:"addBoost",name:"Prestige Point Booster",cost:1+(game.prestige.addBoost*15),desc:"+1 extra prestige point gain each prestige"},
+      {id:"final",name:"Orbit Unlocker",cost:5000,desc:"??? (unlocks orbit)"}
+    ];
+    upgrades.forEach(u=>{
+      let div=document.createElement("div");
+      div.className="prestige-upgrade";
+      div.innerHTML=`<b>${u.name}</b><br>${u.desc}<br>cost: ${u.cost} prestige points<br>`;
+      let btn=document.createElement("button"); btn.textContent="buy";
+      if(game.prestige.points<u.cost) btn.classList.add("disabled"), btn.disabled=true;
+      btn.onclick=()=>buyPrestigeUpgrade(u.id,u.cost);
+      div.appendChild(btn);
+      cont.appendChild(div);
+    });
+  }
+}
+
+function doPrestige(){
+  if(game.iceCubes<game.prestigeCost) return;
+  game.iceCubes=0;
+  game.prestige.first=true;
+  let gain=1+game.prestige.addBoost;
+  game.prestige.points+=gain;
+  game.iceMultiplier=1;
+  updateUI();
+}
+
+function buyPrestigeUpgrade(id,cost){
+  if(game.prestige.points<cost) return;
+  game.prestige.points-=cost;
+  if(id==="addBoost"){ game.prestige.addBoost+=1; }
+  if(id==="final"){ game.orbitUnlocked=true; unlockOrbit(); }
+  updateUI();
+}
+
+function renderStats(){
+  let cont=document.getElementById("stats-content"); cont.innerHTML=`
+    ice cubes: ${game.iceCubes}<br>
+    freezers: ${game.freezers.length}<br>
+    upgrades: ${JSON.stringify(game.upgrades)}<br>
+    prestige points: ${game.prestige.points}<br>
+    prestige addBoost: ${game.prestige.addBoost}<br>
+    orbit unlocked: ${game.orbitUnlocked}<br>
+    matter: ${game.matter}
+  `;
+}
+
+function useFreezer(f){
+  f.ready=false; f.progress=0; f.total=f.cooldown;
+  updateUI();
+  let interval=setInterval(()=>{
+    f.progress+=0.1;
+    let bar=document.getElementById("prog-"+f.id);
+    if(bar) bar.style.width=Math.min(100,(f.progress/f.total*100))+"%";
+    if(f.progress>=f.total){
+      clearInterval(interval);
+      game.iceCubes+=1*game.iceMultiplier;
+      f.ready=true; f.progress=0;
+      updateUI();
+    }
+  },100);
+}
+
+function buyUpgrade(id,cost){
+  if(game.iceCubes<cost) return; game.iceCubes-=cost; game.upgrades[id]=(game.upgrades[id]||0)+1;
+  if(id==="cooler"){ game.freezers.forEach(f=>f.cooldown=Math.max(0.5,f.cooldown-0.1)); }
+  else if(id==="freezer"){ game.freezers.push({id:game.freezers.length,cooldown:5,ready:true,progress:0}); }
+  else if(id==="rat"){ startRat(); }
+  else if(id==="school"){ game.ratTimer=Math.max(0.5,game.ratTimer-0.5); startRat(); }
+  updateUI();
+}
+
+let ratInterval=null;
+function startRat(){
+  if(ratInterval) clearInterval(ratInterval);
+  ratInterval=setInterval(()=>{
+    if(game.upgrades.rat>0){
+      let clicks=Math.floor(Math.random()*(5+game.upgrades.agility))+1;
+      for(let i=0;i<clicks;i++){
+        let ready=game.freezers.filter(f=>f.ready);
+        if(ready.length===0) return;
+        let pick=ready[Math.floor(Math.random()*ready.length)];
+        useFreezer(pick);
+      }
+    }
+  },game.ratTimer*1000);
+}
+
+function unlockOrbit(){
+  if(!document.querySelector('nav button[onclick="showSection(\'orbit\')"]')){
+    let btn=document.createElement("button");
+    btn.textContent="orbit";
+    btn.onclick=()=>showSection('orbit');
+    document.querySelector("nav").appendChild(btn);
+  }
+  updateOrbit();
+}
+
+let orbitAngle=0, orbitTimer=null;
+function updateOrbit(){
+  if(!game.orbitUnlocked) return;
+  renderOrbit();
+  if(orbitTimer) clearInterval(orbitTimer);
+  orbitTimer=setInterval(()=>{
+    orbitAngle=(orbitAngle+10)%360;
+    renderOrbit();
+    if(game.matterUpgrades.auto>0){
+      let pos=Math.floor(orbitAngle/30);
+      if(pos===6) collectMatter(true);
+    }
+  },200);
+}
+
+function renderOrbit(){
+  let orbit=`         * (star)\n\n     o (planet)\n\n - - - - - - `;
+  let pos=Math.floor(orbitAngle/30);
+  let lines=["         *","","     o",""," - - - - - - "];
+  if(pos===6) lines[2]="     o";
+  document.getElementById("orbit-view").textContent=lines.join("\n");
+  renderMatterUpgrades();
+  updateFloatingStats();
+}
+
+function collectMatter(auto=false){
+  let pos=Math.floor(orbitAngle/30);
+  if(pos===6){
+    let gain=5+game.matterUpgrades.drill;
+    game.matter+=gain;
+    if(!auto) renderOrbit();
+  }
+}
+
+function renderMatterUpgrades(){
+  let cont=document.getElementById("matter-upgrades"); cont.innerHTML="";
+  let defs=[
+    {id:"drill",name:"Sharper Drill",base:20,inc:10,desc:"+1 matter per perfect hit"},
+    {id:"auto",name:"Auto Timer",base:500,inc:0,desc:"automatically collect when aligned (1-time)"},
+    {id:"unlocker",name:"Unlocker",base:1000,inc:0,desc:"does nothing (for now)"}
+  ];
+  defs.forEach(d=>{
+    let level=game.matterUpgrades[d.id]||0;
+    let cost=d.base+level*d.inc;
+    let div=document.createElement("div");
+    div.className="upgrade";
+    div.innerHTML=`<b>${d.name}</b> (lvl ${level})<br>${d.desc}<br>cost: ${cost} matter<br>`;
+    let btn=document.createElement("button");
+    btn.textContent="buy";
+    if(game.matter<cost || (d.id==="auto" && level>=1)) btn.classList.add("disabled"), btn.disabled=true;
+    btn.onclick=()=>buyMatterUpgrade(d.id,cost);
+    div.appendChild(btn);
+    cont.appendChild(div);
+  });
+}
+
+function buyMatterUpgrade(id,cost){
+  if(game.matter<cost) return;
+  game.matter-=cost;
+  game.matterUpgrades[id]=(game.matterUpgrades[id]||0)+1;
+  if(id==="auto" && !orbitTimer) updateOrbit();
+  renderOrbit();
+}
+
+function showResetPopup(){ document.getElementById("reset-popup").style.display="flex"; }
+function closeResetPopup(){ document.getElementById("reset-popup").style.display="none"; }
+function confirmReset(){ localStorage.removeItem("icedSave"); location.reload(); }
+
+function updateUI(){
+  renderFreezers(); renderUpgrades(); renderPrestige(); renderStats(); updateFloatingStats();
+  if(game.orbitUnlocked) unlockOrbit();
+}
+
+// autosave
+setInterval(()=>{ localStorage.setItem("icedSave",JSON.stringify(game)); },5000);
+
+updateUI();
+if(game.orbitUnlocked) updateOrbit();
+
+// FIX: resume mid-cooling freezers on load
+game.freezers.forEach(f => {
+  // ensure a total exists so progress math doesn't break
+  if (!f.total) f.total = f.cooldown;
+  if (!f.ready) {
+    let bar = document.getElementById("prog-" + f.id);
+    if (bar) bar.style.width = (f.progress / f.total * 100) + "%";
+    // avoid creating duplicate intervals on the same freezer
+    if (!f._interval) {
+      f._interval = setInterval(() => {
+        f.progress += 0.1;
+        if (bar) bar.style.width = Math.min(100, (f.progress / f.total * 100)) + "%";
+        if (f.progress >= f.total) {
+          clearInterval(f._interval);
+          delete f._interval;
+          f.ready = true;
+          f.progress = 0;
+          game.iceCubes += 1 * game.iceMultiplier;
+          updateUI();
+        }
+      }, 100);
+    }
+  }
+});
+
+// FIX: ensure rat restarts after load if purchased
+if (game.upgrades && game.upgrades.rat > 0) {
+  startRat();
+}
+
+// FIX: ensure orbit restarts if unlocked
+if (game.orbitUnlocked) {
+  // unlockOrbit will add the nav button if needed and call updateOrbit()
+  unlockOrbit();
+  updateOrbit();
+}
+</script>
+</body>
+  </html>
