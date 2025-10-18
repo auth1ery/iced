@@ -26,26 +26,180 @@
   <link rel="icon" type="image/png" sizes="512x512" href="https://auth1ery.github.io/iced/Untitled%20(11).png" />
 
   <style>
-body { margin:0; font-family:sans-serif; background:#111; color:#eee; display:flex; height:100vh; overflow:hidden; }  
-  nav { width:120px; background:#1a1a1a; padding:10px; display:flex; flex-direction:column; gap:10px; }  
-  nav button { background:#333; color:#eee; border:none; padding:10px; cursor:pointer; border-radius:6px; }  
-  nav button.active { background:#555; }  
-  main { flex:1; display:flex; flex-direction:column; padding:10px; overflow-y:auto; }  
-  .section { display:none; }  
-  .section.active { display:block; }  
-  .freezer-btn { width:140px; height:50px; margin:5px; background:#2b6; color:#fff; border:none; border-radius:8px; position:relative; overflow:hidden; }  
-  .freezer-btn.disabled { background:#555; }  
-  .progress { position:absolute; left:0; top:0; bottom:0; background:rgba(255,255,255,0.2); width:0%; }  
-  .upgrade, .prestige-upgrade { background:#222; margin:8px 0; padding:10px; border-radius:6px; }  
-  .upgrade button, .prestige-upgrade button { margin-top:6px; padding:6px 10px; border:none; border-radius:6px; background:#333; color:#fff; }  
-  .upgrade button.disabled, .prestige-upgrade button.disabled { background:#444; color:#777; cursor:not-allowed; }  
-  .affordable { animation: pulse 1.2s infinite; }  
-  @keyframes pulse { 0% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } 50% { box-shadow: 0 0 12px 2px rgba(255,0,0,0.6); } 100% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } }  
-  .floating-stats { position:fixed; right:10px; bottom:10px; background:rgba(0,0,0,0.6); padding:6px 10px; font-size:12px; border-radius:6px; color:#ddd; pointer-events:none; }  
-  .popup { position:fixed; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); z-index:10; }  
-  .popup-content { background:#222; padding:20px; border-radius:10px; text-align:center; }  
-  .popup-content button { margin:5px; padding:6px 12px; border:none; border-radius:6px; background:#333; color:#fff; cursor:pointer; }  
-  .orbit-view { font-family:monospace; white-space:pre; text-align:center; line-height:1.2; }  
+  * {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: sans-serif;
+  background: #111;
+  color: #eee;
+}
+
+/* Two-pane layout */
+body {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+nav {
+  width: 120px;
+  background: #1a1a1a;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+/* Nav buttons */
+nav button {
+  background: #333;
+  color: #eee;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+nav button:hover { background: #444; }
+nav button.active { background: #555; }
+
+/* Main pane */
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow-y: auto;
+  min-width: 0; /* prevents flex overflow bug */
+}
+
+/* Section visibility */
+.section { display: none; }
+.section.active { display: block; }
+
+/* Freezer button */
+.freezer-btn {
+  width: 140px;
+  height: 50px;
+  margin: 5px;
+  background: #2b6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.freezer-btn.disabled {
+  background: #555;
+  cursor: not-allowed;
+}
+
+/* Progress overlay */
+.progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.2);
+  width: 0%;
+}
+
+/* Upgrade cards */
+.upgrade, .prestige-upgrade {
+  background: #222;
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.upgrade button, .prestige-upgrade button {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+}
+.upgrade button:hover, .prestige-upgrade button:hover {
+  background: #444;
+}
+.upgrade button.disabled, .prestige-upgrade button.disabled {
+  background: #444;
+  color: #777;
+  cursor: not-allowed;
+}
+
+/* Affordable animation */
+.affordable {
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); }
+  50%  { box-shadow: 0 0 12px 2px rgba(255,0,0,0.6); }
+  100% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); }
+}
+
+/* Floating stats box */
+.floating-stats {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(0,0,0,0.6);
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  color: #ddd;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Popup */
+.popup {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.8);
+  z-index: 100;
+}
+.popup-content {
+  background: #222;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+.popup-content button {
+  margin: 5px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+}
+.popup-content button:hover {
+  background: #444;
+}
+
+/* Orbit view */
+.orbit-view {
+  font-family: monospace;
+  white-space: pre;
+  text-align: center;
+  line-height: 1.2;
+    }
   </style>
 </head>
 <body>
