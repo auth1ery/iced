@@ -26,61 +26,26 @@
   <link rel="icon" type="image/png" sizes="512x512" href="https://auth1ery.github.io/iced/Untitled%20(11).png" />
 
   <style>
-    /* Theme variables (Fix #6) */
-    :root {
-      --bg: #0b0b0f;
-      --panel: #151515;
-      --muted: #bfc8d2;
-      --text: #ffffff;
-      --accent: #2bb6a1;
-      --glass: rgba(255,255,255,0.06);
-      --popup-z: 9999; /* Fix #36 */
-      --safe-pulse: rgba(100,180,255,0.18);
-    }
-
-    /* Layout (Fix #8 - removed overflow:hidden on body) */
-    html, body { height:100%; margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text); }
-    .app { display:flex; height:100vh; min-height:480px; }
-    nav { width:120px; background:#121214; padding:10px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box; }
-    nav button { background:#202224; color:var(--text); border:none; padding:10px; cursor:pointer; border-radius:6px; text-transform:capitalize; }
-    nav button.active { background:#2a2e32; }
-    main { flex:1; display:flex; flex-direction:column; padding:10px; overflow:auto; box-sizing:border-box; }
-
-    .section { display:none; }
-    .section.active { display:block; }
-
-    .freezer-btn { width:140px; height:50px; margin:5px; background:var(--accent); color:#fff; border:none; border-radius:8px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-    .freezer-btn.disabled { background:#5a5a5a; }
-    .progress { position:absolute; left:0; top:0; bottom:0; background:var(--glass); width:0%; transition:width 0.08s linear; }
-
-    .upgrade, .prestige-upgrade { background:var(--panel); margin:8px 0; padding:10px; border-radius:6px; color:var(--muted); }
-    .upgrade button, .prestige-upgrade button { margin-top:6px; padding:6px 10px; border:none; border-radius:6px; background:#2b2b2b; color:var(--text); cursor:pointer; }
-    .upgrade button.disabled, .prestige-upgrade button.disabled { background:#444; color:#777; cursor:not-allowed; }
-
-    /* Safer pulse animation (Fix #7) */
-    .affordable { animation: safePulse 1.6s infinite; }
-    @keyframes safePulse {
-      0% { box-shadow: 0 0 0 0 transparent; transform: scale(1); }
-      50% { box-shadow: 0 0 16px 4px var(--safe-pulse); transform: scale(1.02); }
-      100% { box-shadow: 0 0 0 0 transparent; transform: scale(1); }
-    }
-
-    /* Floating stats (Fix #9) */
-    .floating-stats { position:fixed; right:10px; bottom:10px; background:rgba(0,0,0,0.6); padding:8px 12px; font-size:12px; border-radius:8px; color:var(--muted); pointer-events:none; max-width:220px; z-index:1000; }
-
-    /* Popup (Fix #36) */
-    .popup { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.75); z-index:var(--popup-z); }
-    .popup-content { background:var(--panel); padding:20px; border-radius:10px; text-align:center; color:var(--muted); min-width:260px; }
-    .popup-content button { margin:5px; padding:8px 14px; border:none; border-radius:6px; background:#2b2b2b; color:var(--text); cursor:pointer; }
-
-    .orbit-view { font-family:monospace; white-space:pre; text-align:center; line-height:1.2; color:var(--muted); margin:10px 0; }
-
-    /* Responsive */
-    @media (max-width:600px) {
-      nav { width:86px; padding:8px; }
-      .freezer-btn { width:120px; height:46px; }
-      .floating-stats { right:6px; bottom:6px; font-size:11px; max-width:160px; }
-    }
+body { margin:0; font-family:sans-serif; background:#111; color:#eee; display:flex; height:100vh; overflow:hidden; }  
+  nav { width:120px; background:#1a1a1a; padding:10px; display:flex; flex-direction:column; gap:10px; }  
+  nav button { background:#333; color:#eee; border:none; padding:10px; cursor:pointer; border-radius:6px; }  
+  nav button.active { background:#555; }  
+  main { flex:1; display:flex; flex-direction:column; padding:10px; overflow-y:auto; }  
+  .section { display:none; }  
+  .section.active { display:block; }  
+  .freezer-btn { width:140px; height:50px; margin:5px; background:#2b6; color:#fff; border:none; border-radius:8px; position:relative; overflow:hidden; }  
+  .freezer-btn.disabled { background:#555; }  
+  .progress { position:absolute; left:0; top:0; bottom:0; background:rgba(255,255,255,0.2); width:0%; }  
+  .upgrade, .prestige-upgrade { background:#222; margin:8px 0; padding:10px; border-radius:6px; }  
+  .upgrade button, .prestige-upgrade button { margin-top:6px; padding:6px 10px; border:none; border-radius:6px; background:#333; color:#fff; }  
+  .upgrade button.disabled, .prestige-upgrade button.disabled { background:#444; color:#777; cursor:not-allowed; }  
+  .affordable { animation: pulse 1.2s infinite; }  
+  @keyframes pulse { 0% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } 50% { box-shadow: 0 0 12px 2px rgba(255,0,0,0.6); } 100% { box-shadow: 0 0 5px 0 rgba(255,0,0,0.4); } }  
+  .floating-stats { position:fixed; right:10px; bottom:10px; background:rgba(0,0,0,0.6); padding:6px 10px; font-size:12px; border-radius:6px; color:#ddd; pointer-events:none; }  
+  .popup { position:fixed; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); z-index:10; }  
+  .popup-content { background:#222; padding:20px; border-radius:10px; text-align:center; }  
+  .popup-content button { margin:5px; padding:6px 12px; border:none; border-radius:6px; background:#333; color:#fff; cursor:pointer; }  
+  .orbit-view { font-family:monospace; white-space:pre; text-align:center; line-height:1.2; }  
   </style>
 </head>
 <body>
